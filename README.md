@@ -1,6 +1,11 @@
 # dcf77pi-libgpiodv2
 
-**This repository is a fork of the archived repository https://github.com/rene0/dcf77pi.<br>Main contribution is the code migration to libgpiodv2, which makes the project usable on Raspberry Pi OS Trixie.**
+**This repository is a fork of the archived repository https://github.com/rene0/dcf77pi.**
+
+Main contribution are:
+
+- Code migration to libgpiodv2, which makes the project usable on Raspberry Pi OS Trixie.
+- Adding systemd daemon providing shm integration to NTPsec/NTP.
 
 ---
 
@@ -14,7 +19,7 @@ break the Raspberry Pi).
 An example schematics of a receiver is shown in receiver.fcd which can be shown
 using the FidoCadJ package.
 
-The software comes with three binaries and a library:
+The software comes with four binaries and a library:
 
 * dcf77pi : Live decoding from the GPIO pins in interactive mode. Useable keys
   are shown at the bottom of the screen. The backspace key can be used to
@@ -27,9 +32,12 @@ The software comes with three binaries and a library:
   parameters are:
   * -q do not show the raw input, default is to show it.
   * -r raw mode, bypass the normal bit reception routine, default is to use it.
+* dcf77pi-ntpsec : Daemon for running as a systemd service that decodes DCF77
+  time signals and provides them to NTPSec via shared memory. Logs to systemd
+  journal. See [README-ntpsec.md](README-ntpsec.md) for details.
 * libdcf77.so: The shared library containing common routines for reading bits
   (either from a log file or the GPIO pins) and to decode the date, time and
-  third party buffer. Both dcf77pi and dcf77pi-analyze use this library. Header
+  third party buffer. All dcf77pi programs use this library. Header
   files to use the library in your own software are supplied.
 
 The meaning of the keywords in config.json is:
@@ -45,11 +53,11 @@ The meaning of the keywords in config.json is:
 * freq          = sample frequency in Hz (10-155000)
 * outlogfile    = name of the output logfile which can be read back using
   dcf77pi-analyze (default empty). The log file itself only stores the
-  received bits, but not the decoded date and time.
+  received bits, but not the decoded date and time. Ignored by dcf77pi-ntpsec.
+* shm_unit      = NTPSec shared memory unit number 0-3 (default 0, dcf77pi-ntpsec only)
 
-Depending on your operating system and distribution, you might need to copy
-config.json.sample to config.json (in the same directory) to get started. You
-might also want to check and update the provided configuration to match your
+The default configuration is automatically installed to `/etc/dcf77pi/config.json`
+during `make install`.
 setup.
 
 **For detailed configuration information and troubleshooting, see [CONFIG.md](CONFIG.md).**
@@ -97,25 +105,31 @@ libgpiod from source.
 older versions, you may need to install libgpiod2 or compile libgpiod v2 from
 source.
 
-To build and install the program into /usr/bin , the library into /usr/lib and
-the configuration file into /etc/dcf77pi :
+To build and install the program:
 
 ```sh
 % make clean
-% make PREFIX=/usr ETCDIR=/etc/dcf77pi
-% sudo make install PREFIX=/usr ETCDIR=/etc/dcf77pi
+% make
+% sudo make install
 ```
 
-After installation, copy the sample configuration:
+This installs:
+- Binaries to `/usr/bin`
+- Library to `/usr/lib`
+- Configuration to `/etc/dcf77pi`
+- Systemd service (on Linux systems)
+
+The default configuration file is automatically installed to `/etc/dcf77pi/config.json`.
+If you need to modify it:
 
 ```sh
-% sudo cp /etc/dcf77pi/config.json.sample /etc/dcf77pi/config.json
-% sudo nano /etc/dcf77pi/config.json  # Edit as needed
+% sudo nano /etc/dcf77pi/config.json
 ```
 
-**Note:** The ETCDIR parameter is important! If you install with `PREFIX=/usr`
-but don't specify `ETCDIR=/etc/dcf77pi`, the binary will look for the config
-in `/usr/etc/dcf77pi` instead of the standard `/etc/dcf77pi` location.
+**See Also:**
+* [CONFIG.md](CONFIG.md) - Detailed configuration guide
+* [README-ntpsec.md](README-ntpsec.md) - NTPSec daemon setup guide
+* [INSTALL-ntpsec.md](INSTALL-ntpsec.md) - Quick NTPSec installation
 
 On FreeBSD, dcf77pi and dcf77pi-readpin need to be run as root due to the
 permissions of /dev/gpioc\* , but this can be prevented by changing the

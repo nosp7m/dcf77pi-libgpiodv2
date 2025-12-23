@@ -3,7 +3,8 @@
 	"iodev" : 0,
 	"gpiochip" : "/dev/gpiochip0",
 	"bias" : "disabled",
-	"activehigh" : true,
+	"activehigh" : false,
 	"freq" : 1000,
-	"outlogfile" : ""
+	"outlogfile" : "",
+	"shm_unit" : 0
 }

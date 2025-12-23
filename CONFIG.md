@@ -100,13 +100,28 @@ Path to the output log file for recording received bits.
 
 **Example:** `"outlogfile": "/var/log/dcf77pi.log"`
 
+**Note:** This parameter is only used by `dcf77pi` and `dcf77pi-analyze`. It is ignored by `dcf77pi-ntpsec` (which logs to systemd journal only).
+
+#### `shm_unit` (integer, 0-3, dcf77pi-ntpsec only)
+NTPSec shared memory unit number. Only used by the `dcf77pi-ntpsec` daemon.
+
+- `0` *(default)*: Use SHM segment 0 (key 0x4e545030)
+- `1-3`: Use SHM segments 1-3 for multiple time sources
+
+This must match the `unit` number in your NTPSec refclock configuration. For example:
+- `"shm_unit": 0` corresponds to `refclock shm unit 0` in `/etc/ntpsec/ntp.conf`
+
+**Example:** `"shm_unit": 0`
+
+**Note:** This parameter is ignored by `dcf77pi` and `dcf77pi-analyze`.
+
 ## Example Configurations
 
 ### Basic Configuration (Raspberry Pi, physical pin 15)
 
 ```json
 {
-	"pin": 22,
+	"pin": 15,
 	"iodev": 0,
 	"gpiochip": "/dev/gpiochip0",
 	"bias": "disabled",
@@ -120,7 +135,7 @@ Path to the output log file for recording received bits.
 
 ```json
 {
-	"pin": 22,
+	"pin": 15,
 	"iodev": 0,
 	"gpiochip": "/dev/gpiochip0",
 	"bias": "disabled",
@@ -134,11 +149,11 @@ Path to the output log file for recording received bits.
 
 ```json
 {
-	"pin": 22,
+	"pin": 15,
 	"iodev": 0,
 	"gpiochip": "/dev/gpiochip0",
 	"bias": "pull-up",
-	"activehigh": true,
+	"activehigh": false,
 	"freq": 1000,
 	"outlogfile": ""
 }
