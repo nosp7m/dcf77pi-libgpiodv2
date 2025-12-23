@@ -6,6 +6,10 @@
 
 #include <stdbool.h>
 
+#if defined(__linux__)
+#  include <gpiod.h>
+#endif
+
 struct json_object;
 
 /** Value of the bit received by radio or log file */
@@ -70,6 +74,10 @@ struct hardware {
 	unsigned pin;
 	/** pin value is high (1) or low (0) for active signal */
 	bool active_high;
+#if defined(__linux__)
+	/** GPIO chip path (Linux with libgpiod only) */
+	const char *gpiochip;
+#endif
 };
 
 /**

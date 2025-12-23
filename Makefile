@@ -15,6 +15,8 @@ CPPCHECK_ARGS?=--enable=all --inconclusive --language=c --std=c99 \
 # $(shell ...) does not work with FreeBSD make
 JSON_C?=`pkg-config --cflags json-c`
 JSON_L?=`pkg-config --libs json-c`
+GPIOD_C?=`pkg-config --cflags libgpiod 2>/dev/null || echo ""`
+GPIOD_L?=`pkg-config --libs libgpiod 2>/dev/null || echo ""`
 
 all: libdcf77.so dcf77pi dcf77pi-analyze dcf77pi-readpin kevent-demo
 
@@ -25,7 +27,7 @@ objlib=${hdrlib:.h=.o}
 objbin=dcf77pi.o dcf77pi-analyze.o dcf77pi-readpin.o kevent-demo.o
 
 input.o: input.c input.h
-	$(CC) -fpic $(CFLAGS) $(JSON_C) -c input.c -o $@
+	$(CC) -fpic $(CFLAGS) $(JSON_C) $(GPIOD_C) -c input.c -o $@
 decode_time.o: decode_time.c decode_time.h calendar.h
 	$(CC) -fpic $(CFLAGS) -c decode_time.c -o $@
 decode_alarm.o: decode_alarm.c decode_alarm.h
@@ -41,7 +43,7 @@ calendar.o: calendar.c calendar.h
 	$(CC) -fpic $(CFLAGS) -c calendar.c -o $@
 
 libdcf77.so: $(objlib)
-	$(CC) -shared -o $@ $(objlib) -lm -lpthread $(JSON_L)
+	$(CC) -shared -o $@ $(objlib) -lm -lpthread $(JSON_L) $(GPIOD_L)
 
 dcf77pi.o: bits1to14.h decode_alarm.h decode_time.h input.h \
 	mainloop.h calendar.h dcf77pi.c

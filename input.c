@@ -49,7 +49,11 @@ static int bitpos;              /* second */
 static unsigned dec_bp;         /* bitpos decrease in file mode */
 static int buffer[BUFLEN];      /* wrap after BUFLEN positions */
 static FILE *logfile;           /* auto-appended in live mode */
-static int fd;                  /* gpio file */
+static int fd;                  /* gpio file (FreeBSD only) */
+#if defined(__linux__)
+static struct gpiod_chip *chip; /* GPIO chip handle */
+static struct gpiod_line_request *line_req; /* GPIO line request */
+#endif
 static struct hardware hw;
 static struct bitinfo bit;
 static unsigned acc_minlen;
@@ -158,66 +162,86 @@ set_mode_live(struct json_object *config)
 		return errno;
 	}
 #elif defined(__linux__)
-	fd = open("/sys/class/gpio/export", O_WRONLY);
-	if (fd < 0) {
-		perror("open(/sys/class/gpio/export)");
+	/* Get optional gpiochip path from config, default to gpiochip0 */
+	if (json_object_object_get_ex(config, "gpiochip", &value)) {
+		hw.gpiochip = json_object_get_string(value);
+	} else {
+		hw.gpiochip = "/dev/gpiochip0";
+	}
+
+	/* Open GPIO chip */
+	chip = gpiod_chip_open(hw.gpiochip);
+	if (!chip) {
+		fprintf(stderr, "gpiod_chip_open(%s): ", hw.gpiochip);
+		perror(NULL);
 		cleanup();
 		return errno;
 	}
-	res = snprintf(buf, sizeof(buf), "%u", hw.pin);
-	if (res < 0 || res >= sizeof(buf)) {
-		fprintf(stderr, "hw.pin too high? (%i)\n", res);
-		cleanup();
-		return EX_DATAERR;
-	}
-	if (write(fd, buf, res) < 0) {
-		if (errno != EBUSY) {
-			perror("write(export)");
-			cleanup();
-			return errno; /* EBUSY -> pin already exported ? */
-		}
-	}
-	if (close(fd) == -1) {
-		perror("close(export)");
+
+	/* Request line for input */
+	struct gpiod_line_settings *line_settings;
+	struct gpiod_line_config *line_config;
+	struct gpiod_request_config *req_config;
+
+	line_settings = gpiod_line_settings_new();
+	if (!line_settings) {
+		perror("gpiod_line_settings_new");
 		cleanup();
 		return errno;
 	}
-	res = snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%u/direction",
-	    hw.pin);
-	if (res < 0 || res >= sizeof(buf)) {
-		fprintf(stderr, "hw.pin too high? (%i)\n", res);
-		cleanup();
-		return EX_DATAERR;
-	}
-	fd = open(buf, O_RDWR);
-	if (fd < 0) {
-		perror("open(direction)");
+
+	res = gpiod_line_settings_set_direction(line_settings,
+	    GPIOD_LINE_DIRECTION_INPUT);
+	if (res < 0) {
+		perror("gpiod_line_settings_set_direction");
+		gpiod_line_settings_free(line_settings);
 		cleanup();
 		return errno;
 	}
-	if (write(fd, "in", 3) < 0) {
-		perror("write(in)");
+
+	line_config = gpiod_line_config_new();
+	if (!line_config) {
+		perror("gpiod_line_config_new");
+		gpiod_line_settings_free(line_settings);
 		cleanup();
 		return errno;
 	}
-	if (close(fd) == -1) {
-		perror("close(direction)");
+
+	res = gpiod_line_config_add_line_settings(line_config, &hw.pin, 1,
+	    line_settings);
+	if (res < 0) {
+		perror("gpiod_line_config_add_line_settings");
+		gpiod_line_config_free(line_config);
+		gpiod_line_settings_free(line_settings);
 		cleanup();
 		return errno;
 	}
-	res = snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%u/value",
-	    hw.pin);
-	if (res < 0 || res >= sizeof(buf)) {
-		fprintf(stderr, "hw.pin too high? (%i)\n", res);
-		cleanup();
-		return EX_DATAERR;
-	}
-	fd = open(buf, O_RDONLY | O_NONBLOCK);
-	if (fd < 0) {
-		perror("open(value)");
+
+	req_config = gpiod_request_config_new();
+	if (!req_config) {
+		perror("gpiod_request_config_new");
+		gpiod_line_config_free(line_config);
+		gpiod_line_settings_free(line_settings);
 		cleanup();
 		return errno;
 	}
+
+	gpiod_request_config_set_consumer(req_config, "dcf77pi");
+
+	line_req = gpiod_chip_request_lines(chip, req_config, line_config);
+	if (!line_req) {
+		perror("gpiod_chip_request_lines");
+		gpiod_request_config_free(req_config);
+		gpiod_line_config_free(line_config);
+		gpiod_line_settings_free(line_settings);
+		cleanup();
+		return errno;
+	}
+
+	/* Clean up temporary objects */
+	gpiod_request_config_free(req_config);
+	gpiod_line_config_free(line_config);
+	gpiod_line_settings_free(line_settings);
 #endif
 	filemode = 1;
 	return 0;
@@ -227,14 +251,21 @@ set_mode_live(struct json_object *config)
 void
 cleanup(void)
 {
-	if (fd > 0 && close(fd) == -1) {
 #if defined(__FreeBSD__)
+	if (fd > 0 && close(fd) == -1) {
 		perror("close(/dev/gpioc*)");
-#elif defined(__linux__)
-		perror("close(/sys/class/gpio/*)");
-#endif
 	}
 	fd = 0;
+#elif defined(__linux__)
+	if (line_req != NULL) {
+		gpiod_line_request_release(line_req);
+		line_req = NULL;
+	}
+	if (chip != NULL) {
+		gpiod_chip_close(chip);
+		chip = NULL;
+	}
+#endif
 	if (logfile != NULL) {
 		if (fclose(logfile) == EOF) {
 			perror("fclose(logfile)");
@@ -261,10 +292,14 @@ get_pulse(void)
 	tmpch = (req.gp_value == GPIO_PIN_HIGH) ? 1 : 0;
 	if (count < 0) {
 #elif defined(__linux__)
-	count = read(fd, &tmpch, 1);
-	tmpch -= '0';
-	if (lseek(fd, 0, SEEK_SET) == (off_t)-1)
-		return 2; /* rewind to prevent EBUSY/no read failed */
+	enum gpiod_line_value value;
+	
+	value = gpiod_line_request_get_value(line_req, hw.pin);
+	if (value == GPIOD_LINE_VALUE_ERROR) {
+		return 2; /* hardware failure? */
+	}
+	tmpch = (value == GPIOD_LINE_VALUE_ACTIVE) ? 1 : 0;
+	count = 1; /* success */
 	if (count != 1) {
 #endif
 		return 2; /* hardware failure? */

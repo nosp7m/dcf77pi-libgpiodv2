@@ -37,6 +37,7 @@ The meaning of the keywords in config.json is:
 
 * pin           = GPIO pin number (0-65535)
 * iodev         = GPIO device number (FreeBSD only)
+* gpiochip      = GPIO chip device path (Linux only, default: /dev/gpiochip0)
 * activehigh    = pulses are active high (true) or passive high (false)
 * freq          = sample frequency in Hz (10-155000)
 * outlogfile    = name of the output logfile which can be read back using
@@ -47,6 +48,11 @@ Depending on your operating system and distribution, you might need to copy
 config.json.sample to config.json (in the same directory) to get started. You
 might also want to check and update the provided configuration to match your
 setup.
+
+**Note for Linux users:** On Raspberry Pi OS Trixie and newer, GPIO access uses
+the modern libgpiod v2 library instead of the deprecated sysfs interface. The
+`gpiochip` parameter (optional, defaults to `/dev/gpiochip0`) specifies which
+GPIO chip to use.
 
 ---
 
@@ -73,8 +79,12 @@ example, on FreeBSD:
 On Linux, you will also have to install an (n)curses development package using
 your package manager. For example, on Raspbian:
 ```sh
-% sudo apt-get install libncurses5-dev libjson-c-dev pkgconf
+% sudo apt-get install libncurses5-dev libjson-c-dev libgpiod-dev pkgconf
 ```
+
+**Note:** libgpiod-dev is required for Raspberry Pi OS Trixie and newer. For
+older versions, you may need to install libgpiod2 or compile libgpiod v2 from
+source.
 
 To build and install the program into /usr/bin , the library into /usr/lib and
 the configuration file into /usr/etc/dcf77pi :
