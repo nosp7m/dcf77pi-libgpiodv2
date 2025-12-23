@@ -49,10 +49,10 @@ static int bitpos;              /* second */
 static unsigned dec_bp;         /* bitpos decrease in file mode */
 static int buffer[BUFLEN];      /* wrap after BUFLEN positions */
 static FILE *logfile;           /* auto-appended in live mode */
-static int fd;                  /* gpio file (FreeBSD only) */
+static int fd = -1;             /* gpio file (FreeBSD only), -1 = invalid */
 #if defined(__linux__)
-static struct gpiod_chip *chip; /* GPIO chip handle */
-static struct gpiod_line_request *line_req; /* GPIO line request */
+static struct gpiod_chip *chip = NULL; /* GPIO chip handle */
+static struct gpiod_line_request *line_req = NULL; /* GPIO line request */
 #endif
 static struct hardware hw;
 static struct bitinfo bit;
@@ -132,6 +132,11 @@ set_mode_live(struct json_object *config)
 		return EX_DATAERR;
 	}
 	bit.signal = malloc(hw.freq / 2);
+	if (bit.signal == NULL) {
+		fprintf(stderr, "Failed to allocate memory for signal buffer\n");
+		cleanup();
+		return ENOMEM;
+	}
 #if defined(__FreeBSD__)
 	if (json_object_object_get_ex(config, "iodev", &value)) {
 		hw.iodev = (unsigned)json_object_get_int(value);
@@ -207,7 +212,8 @@ set_mode_live(struct json_object *config)
 		return errno;
 	}
 
-	res = gpiod_line_config_add_line_settings(line_config, &hw.pin, 1,
+	unsigned offsets[] = {hw.pin};
+	res = gpiod_line_config_add_line_settings(line_config, offsets, 1,
 	    line_settings);
 	if (res < 0) {
 		perror("gpiod_line_config_add_line_settings");
@@ -252,10 +258,10 @@ void
 cleanup(void)
 {
 #if defined(__FreeBSD__)
-	if (fd > 0 && close(fd) == -1) {
+	if (fd >= 0 && close(fd) == -1) {
 		perror("close(/dev/gpioc*)");
 	}
-	fd = 0;
+	fd = -1;
 #elif defined(__linux__)
 	if (line_req != NULL) {
 		gpiod_line_request_release(line_req);
@@ -274,6 +280,7 @@ cleanup(void)
 		}
 	}
 	free(bit.signal);
+	bit.signal = NULL;
 }
 
 int
@@ -443,7 +450,7 @@ get_bit_live(void)
 			if (bit.tlow <= hw.freq / 20) {
 				gb_res.hwstat = ehw_receive;
 				outch = 'r';
-			} else if (bit.tlow * 100 / bit.t >= 99) {
+			} else if (bit.t > 0 && bit.tlow * 100 / bit.t >= 99) {
 				gb_res.hwstat = ehw_transmit;
 				outch = 'x';
 			} else {
@@ -803,7 +810,11 @@ void
 {
 	for (;;)
 	{
-		fflush(logfile);
+		if (logfile != NULL) {
+			if (fflush(logfile) != 0) {
+				perror("fflush(logfile)");
+			}
+		}
 		sleep(60);
 	}
 }
@@ -812,6 +823,7 @@ int
 append_logfile(const char * const logfilename)
 {
 	pthread_t flush_thread;
+	int res;
 
 	if (logfilename == NULL) {
 		fprintf(stderr, "logfilename is NULL\n");
@@ -822,7 +834,12 @@ append_logfile(const char * const logfilename)
 		return errno;
 	}
 	fprintf(logfile, "\n--new log--\n\n");
-	return pthread_create(&flush_thread, NULL, flush_logfile, NULL);
+	res = pthread_create(&flush_thread, NULL, flush_logfile, NULL);
+	if (res == 0) {
+		/* Detach thread so it cleans up automatically when done */
+		pthread_detach(flush_thread);
+	}
+	return res;
 }
 
 int

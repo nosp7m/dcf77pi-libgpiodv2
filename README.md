@@ -1,7 +1,6 @@
-dcf77pi
-=======
+# dcf77pi-libgpiodv2
 
-**This repository has been migrated to https://codeberg.org/rene0/dcf77pi and archived here.**
+**This repository is a fork of the archived repository https://github.com/rene0/dcf77pi.<br>Main contribution is the code migration to libgpiodv2, which makes the project usable on Raspberry Pi OS Trixie.**
 
 ---
 
@@ -76,11 +75,17 @@ example, on FreeBSD:
 % sudo pkg install json-c pkgconf
 ```
 
-On Linux, you will also have to install an (n)curses development package using
-your package manager. For example, on Raspbian:
+On Linux, you will also have to install an (n)curses development package and
+libgpiod (v2.0 or later) using your package manager. For example, on Raspbian/
+Raspberry Pi OS Trixie:
+
 ```sh
 % sudo apt-get install libncurses5-dev libjson-c-dev libgpiod-dev pkgconf
 ```
+
+**Note:** For Raspberry Pi OS Bookworm or older, libgpiod v2 may not be
+available in the default repositories. Consider upgrading to Trixie or building
+libgpiod from source.
 
 **Note:** libgpiod-dev is required for Raspberry Pi OS Trixie and newer. For
 older versions, you may need to install libgpiod2 or compile libgpiod v2 from
