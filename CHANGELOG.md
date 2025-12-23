@@ -1,3 +1,8 @@
+Version 3.8.0 -- 2025-12-23
+* Migrate to libgpiod v2.
+* Fixed critical issues.
+* Fixed non-critical issues.
+
 Version 3.7.1.1 -- 2020-04-17
 * Fix a compiler warning which would lead to wrong calculations.
 
