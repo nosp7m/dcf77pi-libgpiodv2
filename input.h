@@ -4,6 +4,16 @@
 #ifndef DCF77PI_INPUT_H
 #define DCF77PI_INPUT_H
 
+/*
+ * THREAD SAFETY WARNING:
+ * 
+ * This module is NOT thread-safe. All functions access shared static state.
+ * Do NOT call these functions from multiple threads concurrently.
+ * 
+ * The only exception is the internal flush_logfile() thread, which only
+ * performs limited operations on the logfile handle.
+ */
+
 #include <stdbool.h>
 
 #if defined(__linux__)
@@ -215,6 +225,10 @@ int append_logfile(const char * const logfilename);
 
 /**
  * Close the currently opened log file.
+ *
+ * WARNING: This function has a race condition with the flush thread.
+ * The background flush thread may still be accessing the logfile when
+ * this function is called. Use with caution.
  *
  * @return The log file was closed successfully (0), or errno otherwise.
  */

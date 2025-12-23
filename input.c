@@ -45,6 +45,23 @@
 /** maximum number of bits in a minute */
 #define BUFLEN 60
 
+/** flush interval for logfile in seconds */
+#define LOGFILE_FLUSH_INTERVAL 60
+
+/*
+ * WARNING: This module is NOT thread-safe!
+ * 
+ * The static variables (bitpos, buffer, logfile, etc.) are accessed from:
+ * - Main thread
+ * - Flush thread (flush_logfile)
+ * 
+ * The flush thread only reads logfile and calls fflush(), which should be
+ * safe as long as the main thread doesn't close the logfile while flushing.
+ * However, proper mutex protection would be needed for full thread safety.
+ * 
+ * Users should NOT call functions from multiple threads simultaneously.
+ */
+
 static int bitpos;              /* second */
 static unsigned dec_bp;         /* bitpos decrease in file mode */
 static int buffer[BUFLEN];      /* wrap after BUFLEN positions */
@@ -55,7 +72,7 @@ static struct gpiod_chip *chip = NULL; /* GPIO chip handle */
 static struct gpiod_line_request *line_req = NULL; /* GPIO line request */
 #endif
 static struct hardware hw;
-static struct bitinfo bit;
+static struct bitinfo bit = {0}; /* Initialize to zero, including bit.signal = NULL */
 static unsigned acc_minlen;
 static int cutoff;
 static struct GB_result gb_res;
@@ -815,7 +832,7 @@ void
 				perror("fflush(logfile)");
 			}
 		}
-		sleep(60);
+		sleep(LOGFILE_FLUSH_INTERVAL);
 	}
 }
 
@@ -847,7 +864,18 @@ close_logfile(void)
 {
 	int f;
 
+	/*
+	 * WARNING: This function has a race condition!
+	 * The flush_logfile() thread may still be accessing the logfile.
+	 * Ideally, we should signal the thread to stop and join it before
+	 * closing the file. For now, the flush thread checks for NULL
+	 * before accessing logfile, which provides minimal protection.
+	 */
+	if (logfile == NULL) {
+		return 0;
+	}
 	f = fclose(logfile);
+	logfile = NULL; /* Prevent flush thread from using it */
 	return (f == EOF) ? errno : 0;
 }
 

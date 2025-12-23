@@ -576,17 +576,32 @@ main(int argc, char *argv[])
 		return EX_NOINPUT;
 	}
 	if (json_object_object_get_ex(config, "outlogfile", &value)) {
-		logfilename = (char *)json_object_get_string(value);
+		const char *logfile_str = json_object_get_string(value);
+		/* strdup to avoid dangling pointer when config is freed */
+		if (logfile_str != NULL) {
+			logfilename = strdup(logfile_str);
+			if (logfilename == NULL) {
+				perror("strdup(logfilename)");
+				json_object_put(config);
+				client_cleanup(NULL);
+				return ENOMEM;
+			}
+		}
 	}
 	if (logfilename != NULL && strlen(logfilename) != 0) {
 		res = append_logfile(logfilename);
 		if (res != 0) {
 			perror("fopen(logfile)");
+			json_object_put(config);
 			client_cleanup(NULL);
 			return res;
 		}
 	}
 	res = set_mode_live(config);
+	
+	/* Config object no longer needed, free it */
+	json_object_put(config);
+	
 	if (res != 0) {
 		/* something went wrong */
 		client_cleanup("set_mode_live() failed");

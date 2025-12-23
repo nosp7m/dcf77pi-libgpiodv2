@@ -31,8 +31,12 @@ void decode_alarm(const unsigned civbuf[], struct alm * const alarm);
 /**
  * Determines the name of the region which the alarm is broadcasted for.
  *
+ * NOTE: This function returns a pointer to a static buffer that is
+ * overwritten on each call. The returned string should not be freed
+ * and should be used or copied before the next call to this function.
+ *
  * @param alarm The structure containing the alarm information.
- * @return The region name.
+ * @return The region name (pointer to static buffer).
  */
 const char * const get_region_name(struct alm alarm);
 

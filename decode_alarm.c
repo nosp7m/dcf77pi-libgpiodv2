@@ -4,7 +4,7 @@
 #include "decode_alarm.h"
 
 #include <stdbool.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 static const char * const reg1n = "SWH, HH, NS, BR, MVP";
@@ -50,7 +50,8 @@ decode_alarm(const unsigned civbuf[], struct alm * const alarm)
 const char * const
 get_region_name(struct alm alarm)
 {
-	char *res;
+	static char res[256]; /* Static buffer to avoid memory leak */
+	size_t pos = 0;
 	bool need_comma;
 
 	/* Partial information only */
@@ -60,30 +61,29 @@ get_region_name(struct alm alarm)
 		return "(inconsistent)";
 	}
 
-	res = calloc(1, strlen(reg1n) + 2 + strlen(reg1m) + 2 + strlen(reg1s) +
-	    1);
-
-	if (res == NULL) {
-		return res;
-	}
-
+	res[0] = '\0'; /* Clear buffer */
 	need_comma = false;
+
 	if ((alarm.region[0].r1 & 1) == 1) {
-		res = strcat(res, reg1n);
+		pos += snprintf(res + pos, sizeof(res) - pos, "%s", reg1n);
 		need_comma = true;
 	}
 	if ((alarm.region[0].r1 & 2) == 2) {
-		if (need_comma) {
-			res = strcat(res, ", ");
+		if (need_comma && pos < sizeof(res) - 3) {
+			pos += snprintf(res + pos, sizeof(res) - pos, ", ");
 		}
-		res = strcat(res, reg1m);
+		if (pos < sizeof(res)) {
+			pos += snprintf(res + pos, sizeof(res) - pos, "%s", reg1m);
+		}
 		need_comma = true;
 	}
 	if ((alarm.region[0].r1 & 4) == 4) {
-		if (need_comma) {
-			res = strcat(res, ", ");
+		if (need_comma && pos < sizeof(res) - 3) {
+			pos += snprintf(res + pos, sizeof(res) - pos, ", ");
 		}
-		res = strcat(res, reg1s);
+		if (pos < sizeof(res)) {
+			snprintf(res + pos, sizeof(res) - pos, "%s", reg1s);
+		}
 	}
 	return res;
 }
