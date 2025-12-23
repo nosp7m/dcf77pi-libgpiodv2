@@ -37,6 +37,10 @@ The meaning of the keywords in config.json is:
 * pin           = GPIO pin number (0-65535)
 * iodev         = GPIO device number (FreeBSD only)
 * gpiochip      = GPIO chip device path (Linux only, default: /dev/gpiochip0)
+* bias          = GPIO line bias (Linux only): "disabled", "pull-up", or "pull-down"
+                  (default: "disabled"). Most DCF77 modules have their own pull
+                  resistors, so "disabled" is usually correct. Use "pull-up" if
+                  your module requires it.
 * activehigh    = pulses are active high (true) or passive high (false)
 * freq          = sample frequency in Hz (10-155000)
 * outlogfile    = name of the output logfile which can be read back using
@@ -47,6 +51,8 @@ Depending on your operating system and distribution, you might need to copy
 config.json.sample to config.json (in the same directory) to get started. You
 might also want to check and update the provided configuration to match your
 setup.
+
+**For detailed configuration information and troubleshooting, see [CONFIG.md](CONFIG.md).**
 
 **Note for Linux users:** On Raspberry Pi OS Trixie and newer, GPIO access uses
 the modern libgpiod v2 library instead of the deprecated sysfs interface. The

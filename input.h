@@ -78,8 +78,10 @@ struct GB_result {
 struct hardware {
 	/** sample frequency in Hz */
 	unsigned freq;
+#if defined(__FreeBSD__)
 	/** GPIO device number (FreeBSD only) */
 	unsigned iodev;
+#endif
 	/** pin number to read from */
 	unsigned pin;
 	/** pin value is high (1) or low (0) for active signal */
@@ -87,6 +89,8 @@ struct hardware {
 #if defined(__linux__)
 	/** GPIO chip path (Linux with libgpiod only) */
 	const char *gpiochip;
+	/** GPIO line bias: "disabled", "pull-up", or "pull-down" */
+	const char *bias;
 #endif
 };
 

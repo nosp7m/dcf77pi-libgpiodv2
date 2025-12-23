@@ -1,7 +1,8 @@
 {
-	"pin" : 17,
+	"pin" : 15,
 	"iodev" : 0,
 	"gpiochip" : "/dev/gpiochip0",
+	"bias" : "disabled",
 	"activehigh" : true,
 	"freq" : 1000,
 	"outlogfile" : ""

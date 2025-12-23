@@ -191,6 +191,13 @@ set_mode_live(struct json_object *config)
 		hw.gpiochip = "/dev/gpiochip0";
 	}
 
+	/* Get optional bias setting from config, default to disabled */
+	if (json_object_object_get_ex(config, "bias", &value)) {
+		hw.bias = json_object_get_string(value);
+	} else {
+		hw.bias = "disabled";
+	}
+
 	/* Open GPIO chip */
 	chip = gpiod_chip_open(hw.gpiochip);
 	if (!chip) {
@@ -216,6 +223,29 @@ set_mode_live(struct json_object *config)
 	    GPIOD_LINE_DIRECTION_INPUT);
 	if (res < 0) {
 		perror("gpiod_line_settings_set_direction");
+		gpiod_line_settings_free(line_settings);
+		cleanup();
+		return errno;
+	}
+
+	/* Set bias based on config */
+	int bias_mode;
+	if (strcmp(hw.bias, "pull-up") == 0) {
+		bias_mode = GPIOD_LINE_BIAS_PULL_UP;
+	} else if (strcmp(hw.bias, "pull-down") == 0) {
+		bias_mode = GPIOD_LINE_BIAS_PULL_DOWN;
+	} else if (strcmp(hw.bias, "disabled") == 0) {
+		bias_mode = GPIOD_LINE_BIAS_DISABLED;
+	} else {
+		fprintf(stderr, "Invalid bias setting '%s'. Use 'disabled', 'pull-up', or 'pull-down'\n", hw.bias);
+		gpiod_line_settings_free(line_settings);
+		cleanup();
+		return EX_DATAERR;
+	}
+	
+	res = gpiod_line_settings_set_bias(line_settings, bias_mode);
+	if (res < 0) {
+		perror("gpiod_line_settings_set_bias");
 		gpiod_line_settings_free(line_settings);
 		cleanup();
 		return errno;
@@ -254,6 +284,11 @@ set_mode_live(struct json_object *config)
 	line_req = gpiod_chip_request_lines(chip, req_config, line_config);
 	if (!line_req) {
 		perror("gpiod_chip_request_lines");
+		fprintf(stderr, "Error: Failed to request GPIO line %u on %s\n", hw.pin, hw.gpiochip);
+		fprintf(stderr, "This may be caused by:\n");
+		fprintf(stderr, "  - Another process using the GPIO line\n");
+		fprintf(stderr, "  - Kernel driver claiming the GPIO\n");
+		fprintf(stderr, "Check with: sudo gpioinfo %s | grep -A 2 'line %u'\n", hw.gpiochip, hw.pin);
 		gpiod_request_config_free(req_config);
 		gpiod_line_config_free(line_config);
 		gpiod_line_settings_free(line_settings);
@@ -320,8 +355,11 @@ get_pulse(void)
 	
 	value = gpiod_line_request_get_value(line_req, hw.pin);
 	if (value == GPIOD_LINE_VALUE_ERROR) {
+		perror("gpiod_line_request_get_value");
+		fprintf(stderr, "Error reading GPIO %u - check if line was properly requested\n", hw.pin);
 		return 2; /* hardware failure? */
 	}
+	/* GPIOD_LINE_VALUE_ACTIVE (1) = high, GPIOD_LINE_VALUE_INACTIVE (0) = low */
 	tmpch = (value == GPIOD_LINE_VALUE_ACTIVE) ? 1 : 0;
 	count = 1; /* success */
 	if (count != 1) {
@@ -329,6 +367,7 @@ get_pulse(void)
 		return 2; /* hardware failure? */
 	}
 
+	/* Invert if the hardware signal is active-low */
 	if (!hw.active_high) {
 		tmpch = 1 - tmpch;
 	}
