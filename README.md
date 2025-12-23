@@ -92,11 +92,24 @@ older versions, you may need to install libgpiod2 or compile libgpiod v2 from
 source.
 
 To build and install the program into /usr/bin , the library into /usr/lib and
-the configuration file into /usr/etc/dcf77pi :
+the configuration file into /etc/dcf77pi :
+
 ```sh
-% make PREFIX=/usr
-% sudo make install PREFIX=/usr
+% make clean
+% make PREFIX=/usr ETCDIR=/etc/dcf77pi
+% sudo make install PREFIX=/usr ETCDIR=/etc/dcf77pi
 ```
+
+After installation, copy the sample configuration:
+
+```sh
+% sudo cp /etc/dcf77pi/config.json.sample /etc/dcf77pi/config.json
+% sudo nano /etc/dcf77pi/config.json  # Edit as needed
+```
+
+**Note:** The ETCDIR parameter is important! If you install with `PREFIX=/usr`
+but don't specify `ETCDIR=/etc/dcf77pi`, the binary will look for the config
+in `/usr/etc/dcf77pi` instead of the standard `/etc/dcf77pi` location.
 
 On FreeBSD, dcf77pi and dcf77pi-readpin need to be run as root due to the
 permissions of /dev/gpioc\* , but this can be prevented by changing the

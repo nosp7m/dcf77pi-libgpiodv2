@@ -54,6 +54,10 @@ main(int argc, char *argv[])
 
 	config = json_object_from_file(ETCDIR "/config.json");
 	if (config == NULL) {
+		fprintf(stderr, "Error: Could not open config file: %s/config.json\n",
+		    ETCDIR);
+		fprintf(stderr, "Please ensure the config file exists and is readable.\n");
+		fprintf(stderr, "You may need to copy config.json.sample to config.json\n");
 		client_cleanup();
 		return EX_NOINPUT;
 	}

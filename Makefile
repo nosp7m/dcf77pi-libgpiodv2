@@ -6,7 +6,16 @@
 
 PREFIX?=.
 ETCDIR?=etc/dcf77pi
-CFLAGS+=-Wall -D_POSIX_C_SOURCE=200809L -DETCDIR=\"$(PREFIX)/$(ETCDIR)\" \
+# Allow ETCDIR to be absolute or relative. If it starts with /, use as-is
+# Otherwise prepend PREFIX
+ifeq ($(filter /%,$(ETCDIR)),)
+    # ETCDIR is relative, prepend PREFIX
+    ETCDIR_ABS=$(PREFIX)/$(ETCDIR)
+else
+    # ETCDIR is absolute, use as-is
+    ETCDIR_ABS=$(ETCDIR)
+endif
+CFLAGS+=-Wall -D_POSIX_C_SOURCE=200809L -DETCDIR=\"$(ETCDIR_ABS)\" \
 	-g -std=c99
 INSTALL?=install
 INSTALL_PROGRAM?=$(INSTALL)
