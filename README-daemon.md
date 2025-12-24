@@ -1,13 +1,13 @@
-# dcf77pi-ntpsec - DCF77 NTPSec Daemon
+# dcf77pi-daemon - DCF77 NTPsec/Chrony Daemon
 
 ## Overview
 
-`dcf77pi-ntpsec` is a systemd daemon that decodes DCF77 time signals from a GPIO-connected receiver and provides the time to NTPSec via its shared memory (SHM) interface. This allows your Raspberry Pi to act as a stratum 1 NTP server using DCF77 as the reference clock.
+`dcf77pi-daemon` is a systemd daemon that decodes DCF77 time signals from a GPIO-connected receiver and provides the time to both NTPsec and Chrony via shared memory (SHM). This allows your Raspberry Pi to act as a stratum 1 NTP server using DCF77 as the reference clock.
 
 ## Features
 
 - **Daemon mode**: Runs as a systemd service in the background
-- **NTPSec SHM integration**: Provides time via NTPSec's shared memory interface
+- **Dual SHM integration**: Provides time via both NTPsec's and Chrony's SHM interfaces
 - **Systemd journal logging**: All output goes to the systemd journal for easy monitoring
 - **Error logging**: Detailed error messages for decoding failures and hardware issues
 - **Success logging**: Logs every successful time decode
@@ -25,7 +25,7 @@ make
 Or build just the daemon:
 
 ```bash
-make dcf77pi-ntpsec
+make dcf77pi-daemon
 ```
 
 Install:
@@ -51,16 +51,16 @@ Edit `/etc/dcf77pi/config.json` (or `/usr/local/etc/dcf77pi/config.json`):
 }
 ```
 
-**New parameter:**
-- `shm_unit`: NTPSec SHM unit number (0-3, default 0). This corresponds to the SHM segment that NTPSec will read from. Use different numbers if you have multiple time sources.
+**New parameters:**
+- `shm_unit`: NTPsec/Chrony SHM unit number (0-3, default 0). This corresponds to the System V SHM segment that NTPsec/Chrony will read from. Use different numbers if you have multiple time sources.
 
-**Note:** The `outlogfile` parameter is ignored by `dcf77pi-ntpsec`. All logging goes to systemd journal only.
+**Note:** The `outlogfile` parameter is ignored by `dcf77pi-daemon`. All logging goes to systemd journal only.
 
-### 2. NTPSec Configuration
+### 2. NTPsec Configuration
 
-#### Step 1: Edit the NTPSec configuration file
+#### Step 1: Edit the NTPsec configuration file
 
-Add the DCF77 SHM refclock to your NTPSec configuration (`/etc/ntpsec/ntp.conf`):
+Add the DCF77 SHM refclock to your NTPsec configuration (`/etc/NTPsec/ntp.conf`):
 
 ```
 # DCF77 via shared memory (SHM unit 0)
@@ -74,22 +74,22 @@ refclock shm unit 0 refid DCF77 prefer
 
 If you changed `shm_unit` in config.json, make sure the `unit` number matches.
 
-#### Step 2: Configure NTPSec to use the static configuration
+#### Step 2: Configure NTPsec to use the static configuration
 
-Some systems (especially when using DHCP) configure NTPSec to use a dynamically generated config file (e.g., `/run/ntpsec/ntp.conf.dhcp`) instead of the static `/etc/ntpsec/ntp.conf`. To ensure NTPSec uses your static configuration:
+Some systems (especially when using DHCP) configure NTPsec to use a dynamically generated config file (e.g., `/run/NTPsec/ntp.conf.dhcp`) instead of the static `/etc/NTPsec/ntp.conf`. To ensure NTPsec uses your static configuration:
 
 **Check which config file is being used:**
 
 ```bash
-systemctl status ntpsec | grep "Command line"
+systemctl status NTPsec | grep "Command line"
 ```
 
-If you see `-c /run/ntpsec/ntp.conf.dhcp` or similar, you need to override this.
+If you see `-c /run/NTPsec/ntp.conf.dhcp` or similar, you need to override this.
 
 **Create a systemd service override:**
 
 ```bash
-sudo systemctl edit ntpsec
+sudo systemctl edit NTPsec
 ```
 
 Add these lines in the editor that opens:
@@ -97,10 +97,10 @@ Add these lines in the editor that opens:
 ```ini
 [Service]
 ExecStart=
-ExecStart=/usr/sbin/ntpd -p /run/ntpd.pid -g -u ntpsec:ntpsec
+ExecStart=/usr/sbin/ntpd -p /run/ntpd.pid -g -u NTPsec:NTPsec
 ```
 
-The first `ExecStart=` clears the original command, and the second sets it to use the default `/etc/ntpsec/ntp.conf` (without the `-c` parameter).
+The first `ExecStart=` clears the original command, and the second sets it to use the default `/etc/NTPsec/ntp.conf` (without the `-c` parameter).
 
 Save and exit the editor (Ctrl+O, Enter, Ctrl+X in nano).
 
@@ -108,10 +108,10 @@ Save and exit the editor (Ctrl+O, Enter, Ctrl+X in nano).
 
 ```bash
 # Create override directory
-sudo mkdir -p /etc/systemd/system/ntpsec.service.d/
+sudo mkdir -p /etc/systemd/system/NTPsec.service.d/
 
 # Create override file
-sudo nano /etc/systemd/system/ntpsec.service.d/override.conf
+sudo nano /etc/systemd/system/NTPsec.service.d/override.conf
 ```
 
 Add this content:
@@ -119,25 +119,73 @@ Add this content:
 ```ini
 [Service]
 ExecStart=
-ExecStart=/usr/sbin/ntpd -p /run/ntpd.pid -g -u ntpsec:ntpsec
+ExecStart=/usr/sbin/ntpd -p /run/ntpd.pid -g -u NTPsec:NTPsec
 ```
 
-#### Step 3: Apply changes and restart NTPSec
+#### Step 3: Apply changes and restart NTPsec
 
 ```bash
 # Reload systemd configuration
 sudo systemctl daemon-reload
 
-# Restart NTPSec
-sudo systemctl restart ntpsec
+# Restart NTPsec
+sudo systemctl restart NTPsec
 
 # Verify it's using the correct config file
-systemctl status ntpsec | grep "Command line"
+systemctl status NTPsec | grep "Command line"
 ```
 
-You should now see the command line **without** the `-c` parameter, meaning it's using `/etc/ntpsec/ntp.conf`.
+You should now see the command line **without** the `-c` parameter, meaning it's using `/etc/NTPsec/ntp.conf`.
 
-### 3. Permissions
+### 3. Chrony Configuration (Alternative to NTPsec)
+
+If you prefer to use Chrony instead of NTPsec (or want to use both), configure Chrony to read from the shared memory segment:
+
+#### Step 1: Edit the Chrony configuration file
+
+Edit `/etc/chrony/chrony.conf` (or `/etc/chrony.conf` on some systems) and add:
+
+```
+# DCF77 via SHM shared memory (unit 0)
+refclock SHM 0 refid DCF77 precision 1e-3 offset 0.0 delay 0.2 poll 4 prefer
+```
+
+**Configuration parameters:**
+- `SHM 0`: Use shared memory unit 0 (matches `shm_unit` in config.json)
+- `refid DCF77`: Reference ID to display
+- `precision 1e-3`: ~1ms precision (DCF77 provides minute precision)
+- `offset 0.0`: Time offset in seconds (adjust if needed)
+- `delay 0.2`: Network delay estimate (tune based on testing)
+- `poll 4`: Poll interval (2^4 = 16 seconds)
+- `prefer`: Mark as preferred time source
+
+If you changed `shm_unit` in config.json, make sure the SHM unit number matches.
+
+#### Step 2: Restart Chrony
+
+```bash
+sudo systemctl restart chronyd
+```
+
+#### Step 3: Check Chrony synchronization
+
+```bash
+# Check Chrony sources
+chronyc sources -v
+
+# Expected output showing DCF77 as a source:
+# MS Name/IP address         Stratum Poll Reach LastRx Last sample
+# ===============================================================================
+# #* SHM0                          0   4   377    15    +12us[  +15us] +/-  100ms
+```
+
+**Understanding the output:**
+- `#*` prefix - Currently selected reference (synchronized)
+- `#?` prefix - Unreachable
+- `Stratum 0` - Highest quality (atomic clock level)
+- `Reach 377` - Full reachability (octal, 8 successful polls)
+
+### 4. Permissions
 
 The daemon needs access to:
 - GPIO device (usually `/dev/gpiochip0`)
@@ -180,7 +228,7 @@ If you need to manually manage the service:
 1. Copy the service file:
 
 ```bash
-sudo cp dcf77pi-ntpsec.service /etc/systemd/system/
+sudo cp dcf77pi-daemon.service /etc/systemd/system/
 ```
 
 2. Reload systemd:
@@ -192,13 +240,13 @@ sudo systemctl daemon-reload
 3. Enable the service to start at boot:
 
 ```bash
-sudo systemctl enable dcf77pi-ntpsec.service
+sudo systemctl enable dcf77pi-daemon.service
 ```
 
 4. Start the service:
 
 ```bash
-sudo systemctl start dcf77pi-ntpsec.service
+sudo systemctl start dcf77pi-daemon.service
 ```
 
 ## Monitoring
@@ -206,29 +254,29 @@ sudo systemctl start dcf77pi-ntpsec.service
 ### View service status
 
 ```bash
-sudo systemctl status dcf77pi-ntpsec.service
+sudo systemctl status dcf77pi-daemon.service
 ```
 
 ### View logs
 
 ```bash
 # View all logs
-journalctl -u dcf77pi-ntpsec.service
+journalctl -u dcf77pi-daemon.service
 
 # Follow logs in real-time
-journalctl -u dcf77pi-ntpsec.service -f
+journalctl -u dcf77pi-daemon.service -f
 
 # View only today's logs
-journalctl -u dcf77pi-ntpsec.service --since today
+journalctl -u dcf77pi-daemon.service --since today
 
 # View last 100 lines
-journalctl -u dcf77pi-ntpsec.service -n 100
+journalctl -u dcf77pi-daemon.service -n 100
 ```
 
-### Check NTPSec synchronization
+### Check NTPsec synchronization
 
 ```bash
-# Check NTPSec peer status
+# Check NTPsec peer status
 ntpq -p
 
 # Look for the DCF77 refclock (should show as a peer with refid "DCF77")
@@ -252,7 +300,7 @@ ntpq -p
 - **`jitter`** - Variation in offset measurements
 
 **Note:** After initial configuration, it may take 5-10 minutes for:
-1. `reach` to increase from 0 to 377 as NTPSec collects samples
+1. `reach` to increase from 0 to 377 as NTPsec collects samples
 2. The `*` indicator to appear, showing DCF77 as the selected source
 3. Full synchronization to be achieved
 
@@ -277,9 +325,9 @@ ipcs -m
 ### Successful operation
 
 ```
-[2024-12-23 10:30:45] INFO: dcf77pi-ntpsec daemon starting
-[2024-12-23 10:30:45] INFO: Initializing NTPSec SHM unit 0 (key 0x4e545030)
-[2024-12-23 10:30:45] INFO: NTPSec SHM initialized successfully
+[2024-12-23 10:30:45] INFO: dcf77pi-daemon daemon starting
+[2024-12-23 10:30:45] INFO: Initializing SHM unit 0 (key 0x4e545030)
+[2024-12-23 10:30:45] INFO: SHM initialized successfully
 [2024-12-23 10:30:45] INFO: GPIO initialized successfully
 [2024-12-23 10:30:45] INFO: Starting DCF77 decode loop
 [2024-12-23 10:31:00] INFO: DCF77 time: winter 2024-12-23 Mon 10:31
@@ -306,8 +354,8 @@ Common error types:
 
 1. Check the service status for detailed error messages:
    ```bash
-   sudo systemctl status dcf77pi-ntpsec.service
-   journalctl -u dcf77pi-ntpsec.service -n 50
+   sudo systemctl status dcf77pi-daemon.service
+   journalctl -u dcf77pi-daemon.service -n 50
    ```
 
 2. Common issues:
@@ -328,29 +376,29 @@ Common error types:
    sudo dcf77pi
    ```
 
-### NTPSec not using DCF77
+### NTPsec not using DCF77
 
-1. **Verify NTPSec is using the correct config file:**
+1. **Verify NTPsec is using the correct config file:**
    ```bash
-   systemctl status ntpsec | grep "Command line"
+   systemctl status NTPsec | grep "Command line"
    ```
    
-   If you see `-c /run/ntpsec/ntp.conf.dhcp`, NTPSec is using a DHCP-generated config instead of `/etc/ntpsec/ntp.conf`. Follow the systemd override steps in the NTPSec Configuration section above.
+   If you see `-c /run/NTPsec/ntp.conf.dhcp`, NTPsec is using a DHCP-generated config instead of `/etc/NTPsec/ntp.conf`. Follow the systemd override steps in the NTPsec Configuration section above.
 
-2. **Check NTPSec logs:**
+2. **Check NTPsec logs:**
    ```bash
-   journalctl -u ntpsec.service -n 50
+   journalctl -u NTPsec.service -n 50
    ```
 
 3. **Verify the refclock is configured correctly:**
    ```bash
-   cat /etc/ntpsec/ntp.conf | grep -A 2 refclock
+   cat /etc/NTPsec/ntp.conf | grep -A 2 refclock
    ```
 
 4. **Check that both services are running:**
    ```bash
-   sudo systemctl status dcf77pi-ntpsec.service
-   sudo systemctl status ntpsec.service
+   sudo systemctl status dcf77pi-daemon.service
+   sudo systemctl status NTPsec.service
    ```
 
 5. **Ensure shared memory segment exists:**
@@ -363,13 +411,13 @@ Common error types:
    ntpq -p
    ```
    
-   If `SHM(0)` appears but has no `*` or `+` indicator, wait 5-10 minutes for NTPSec to collect enough samples. Watch the `reach` value increase from 0 to 377.
+   If `SHM(0)` appears but has no `*` or `+` indicator, wait 5-10 minutes for NTPsec to collect enough samples. Watch the `reach` value increase from 0 to 377.
 
 ### Time offset issues
 
-If NTPSec shows a consistent offset from DCF77:
+If NTPsec shows a consistent offset from DCF77:
 
-1. Adjust the `time1` parameter in `/etc/ntpsec/ntp.conf`:
+1. Adjust the `time1` parameter in `/etc/NTPsec/ntp.conf`:
    ```
    refclock shm unit 0 refid DCF77 prefer time1 0.050
    ```
@@ -384,13 +432,13 @@ If you need to manually uninstall:
 
 1. Stop and disable the service:
    ```bash
-   sudo systemctl stop dcf77pi-ntpsec.service
-   sudo systemctl disable dcf77pi-ntpsec.service
+   sudo systemctl stop dcf77pi-daemon.service
+   sudo systemctl disable dcf77pi-daemon.service
    ```
 
 2. Remove the service file:
    ```bash
-   sudo rm /etc/systemd/system/dcf77pi-ntpsec.service
+   sudo rm /etc/systemd/system/dcf77pi-daemon.service
    sudo systemctl daemon-reload
    ```
 
@@ -406,13 +454,13 @@ If you need to manually uninstall:
 
 ## Technical Details
 
-### NTPSec SHM Protocol
+### NTPsec SHM Protocol
 
-The daemon uses NTPSec's shared memory protocol mode 1:
+The daemon uses NTPsec's shared memory protocol mode 1:
 - Increments a counter before and after updating time values
-- NTPSec reads the time only if the counter is stable
+- NTPsec reads the time only if the counter is stable
 - Provides both DCF77 timestamp and local receive timestamp
-- Reports leap second announcements to NTPSec
+- Reports leap second announcements to NTPsec
 
 ### Shared Memory Key
 
@@ -424,11 +472,11 @@ The SHM segment key is calculated as: `0x4e545030 + unit`
 
 ### Precision
 
-DCF77 provides second-level precision. The daemon reports `-10` precision to NTPSec (2^-10 ≈ 1ms) which is realistic given signal processing delays.
+DCF77 provides second-level precision. The daemon reports `-10` precision to NTPsec (2^-10 ≈ 1ms) which is realistic given signal processing delays.
 
 ## See Also
 
 - Main project: [README.md](README.md)
 - Configuration guide: [CONFIG.md](CONFIG.md)
-- NTPSec documentation: https://docs.ntpsec.org/
+- NTPsec documentation: https://docs.NTPsec.org/
 - DCF77 information: https://en.wikipedia.org/wiki/DCF77

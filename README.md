@@ -5,7 +5,7 @@
 Main contribution are:
 
 - Code migration to libgpiodv2, which makes the project usable on Raspberry Pi OS Trixie.
-- Adding systemd daemon providing shm integration to NTPsec/NTP.
+- Adding systemd daemon providing SHM integration to NTPsec/Chrony.
 
 ---
 
@@ -32,9 +32,9 @@ The software comes with four binaries and a library:
   parameters are:
   * -q do not show the raw input, default is to show it.
   * -r raw mode, bypass the normal bit reception routine, default is to use it.
-* dcf77pi-ntpsec : Daemon for running as a systemd service that decodes DCF77
-  time signals and provides them to NTPSec via shared memory. Logs to systemd
-  journal. See [README-ntpsec.md](README-ntpsec.md) for details.
+* dcf77pi-daemon : Daemon for running as a systemd service that decodes DCF77
+  time signals and provides them to NTPsec/Chrony via shared memory (SHM). Logs
+  to systemd journal. See [README-daemon.md](README-daemon.md) for details.
 * libdcf77.so: The shared library containing common routines for reading bits
   (either from a log file or the GPIO pins) and to decode the date, time and
   third party buffer. All dcf77pi programs use this library. Header
@@ -53,8 +53,8 @@ The meaning of the keywords in config.json is:
 * freq          = sample frequency in Hz (10-155000)
 * outlogfile    = name of the output logfile which can be read back using
   dcf77pi-analyze (default empty). The log file itself only stores the
-  received bits, but not the decoded date and time. Ignored by dcf77pi-ntpsec.
-* shm_unit      = NTPSec shared memory unit number 0-3 (default 0, dcf77pi-ntpsec only)
+  received bits, but not the decoded date and time. Ignored by dcf77pi-daemon.
+* shm_unit      = Shared memory unit number 0-3 (default 0, dcf77pi-daemon only)
 
 The default configuration is automatically installed to `/etc/dcf77pi/config.json`
 during `make install`.
@@ -128,8 +128,8 @@ If you need to modify it:
 
 **See Also:**
 * [CONFIG.md](CONFIG.md) - Detailed configuration guide
-* [README-ntpsec.md](README-ntpsec.md) - NTPSec daemon setup guide
-* [INSTALL-ntpsec.md](INSTALL-ntpsec.md) - Quick NTPSec installation
+* [README-daemon.md](README-daemon.md) - NTPsec daemon setup guide
+* [INSTALL-daemon.md](INSTALL-daemon.md) - Quick NTPsec installation
 
 On FreeBSD, dcf77pi and dcf77pi-readpin need to be run as root due to the
 permissions of /dev/gpioc\* , but this can be prevented by changing the

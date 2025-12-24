@@ -1,4 +1,4 @@
-# Quick Installation Guide for dcf77pi-ntpsec
+# Quick Installation Guide for dcf77pi-daemon
 
 This guide will help you quickly set up the DCF77 NTPSec daemon on your Raspberry Pi.
 
@@ -54,12 +54,12 @@ Minimal configuration example:
 Before setting up as a service, test that it works:
 
 ```bash
-sudo /usr/local/bin/dcf77pi-ntpsec
+sudo /usr/local/bin/dcf77pi-daemon
 ```
 
 You should see output like:
 ```
-[2024-12-23 10:30:45] INFO: dcf77pi-ntpsec daemon starting
+[2024-12-23 10:30:45] INFO: dcf77pi-daemon daemon starting
 [2024-12-23 10:30:45] INFO: Initializing NTPSec SHM unit 0 (key 0x4e545030)
 [2024-12-23 10:30:45] INFO: GPIO initialized successfully
 [2024-12-23 10:30:45] INFO: Starting DCF77 decode loop
@@ -85,19 +85,19 @@ If you need to manually install the service:
 
 ```bash
 # Copy service file
-sudo cp dcf77pi-ntpsec.service /etc/systemd/system/
+sudo cp dcf77pi-daemon.service /etc/systemd/system/
 
 # Reload systemd
 sudo systemctl daemon-reload
 
 # Enable service to start at boot
-sudo systemctl enable dcf77pi-ntpsec.service
+sudo systemctl enable dcf77pi-daemon.service
 
 # Start the service
-sudo systemctl start dcf77pi-ntpsec.service
+sudo systemctl start dcf77pi-daemon.service
 
 # Check status
-sudo systemctl status dcf77pi-ntpsec.service
+sudo systemctl status dcf77pi-daemon.service
 ```
 
 ## Step 5: Configure NTPSec
@@ -140,7 +140,7 @@ The `*` means DCF77 is the selected time source!
 
 Check daemon logs:
 ```bash
-journalctl -u dcf77pi-ntpsec.service -f
+journalctl -u dcf77pi-daemon.service -f
 ```
 
 Check shared memory:
@@ -154,7 +154,7 @@ ipcs -m | grep 4e54503
 
 ```bash
 # Check detailed logs
-journalctl -u dcf77pi-ntpsec.service -n 50
+journalctl -u dcf77pi-daemon.service -n 50
 ```
 
 ### No time decodes (continuous errors)
@@ -174,7 +174,7 @@ journalctl -u ntpsec.service -n 50
 ipcs -m | grep 4e545030
 
 # Check both services are running
-systemctl status dcf77pi-ntpsec.service
+systemctl status dcf77pi-daemon.service
 systemctl status ntpsec.service
 ```
 
@@ -190,7 +190,7 @@ sudo useradd -r -s /bin/false dcf77pi
 sudo usermod -a -G gpio dcf77pi
 
 # Edit service file
-sudo nano /etc/systemd/system/dcf77pi-ntpsec.service
+sudo nano /etc/systemd/system/dcf77pi-daemon.service
 ```
 
 Uncomment these lines:
@@ -202,7 +202,7 @@ Group=dcf77pi
 Reload and restart:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl restart dcf77pi-ntpsec.service
+sudo systemctl restart dcf77pi-daemon.service
 ```
 
 ### Multiple DCF77 receivers
@@ -232,15 +232,15 @@ You'll need to create a second service file that uses `config2.json`.
 Daily health check:
 ```bash
 # View today's successful decodes
-journalctl -u dcf77pi-ntpsec.service --since today | grep "DCF77 time:"
+journalctl -u dcf77pi-daemon.service --since today | grep "DCF77 time:"
 
 # Count decode errors today
-journalctl -u dcf77pi-ntpsec.service --since today | grep "ERROR" | wc -l
+journalctl -u dcf77pi-daemon.service --since today | grep "ERROR" | wc -l
 ```
 
 ## Next Steps
 
-- See [README-ntpsec.md](README-ntpsec.md) for complete documentation
+- See [README-daemon.md](README-daemon.md) for complete documentation
 - Configure NTP clients to use your Raspberry Pi as time server
 - Set up monitoring/alerting for the service
 - Consider adding other time sources (GPS, network NTP) as backup
@@ -249,8 +249,8 @@ journalctl -u dcf77pi-ntpsec.service --since today | grep "ERROR" | wc -l
 
 If you encounter issues:
 
-1. Check the comprehensive documentation in [README-ntpsec.md](README-ntpsec.md)
-2. Review system logs: `journalctl -u dcf77pi-ntpsec.service -n 100`
+1. Check the comprehensive documentation in [README-daemon.md](README-daemon.md)
+2. Review system logs: `journalctl -u dcf77pi-daemon.service -n 100`
 3. Test with interactive tool: `sudo dcf77pi`
 4. Check project issues on GitHub
 
