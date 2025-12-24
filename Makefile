@@ -20,13 +20,13 @@ JSON_L?=`pkg-config --libs json-c`
 GPIOD_C?=`pkg-config --cflags libgpiod 2>/dev/null || echo ""`
 GPIOD_L?=`pkg-config --libs libgpiod 2>/dev/null || echo ""`
 
-all: libdcf77.so dcf77pi dcf77pi-analyze dcf77pi-readpin dcf77pi-ntpsec kevent-demo
+all: libdcf77.so dcf77pi dcf77pi-analyze dcf77pi-readpin dcf77pi-daemon kevent-demo
 
 hdrlib=input.h decode_time.h decode_alarm.h setclock.h mainloop.h \
 	bits1to14.h calendar.h
 srclib=${hdrlib:.h=.c}
 objlib=${hdrlib:.h=.o}
-objbin=dcf77pi.o dcf77pi-analyze.o dcf77pi-readpin.o dcf77pi-ntpsec.o kevent-demo.o
+objbin=dcf77pi.o dcf77pi-analyze.o dcf77pi-readpin.o dcf77pi-daemon.o kevent-demo.o
 
 input.o: input.c input.h
 	$(CC) -fpic $(CFLAGS) $(JSON_C) $(GPIOD_C) -c input.c -o $@
@@ -64,11 +64,11 @@ dcf77pi-readpin.o: input.h dcf77pi-readpin.c
 dcf77pi-readpin: dcf77pi-readpin.o libdcf77.so
 	$(CC) -o $@ dcf77pi-readpin.o libdcf77.so $(JSON_L)
 
-dcf77pi-ntpsec.o: bits1to14.h decode_alarm.h decode_time.h input.h \
-	mainloop.h calendar.h dcf77pi-ntpsec.c
-	$(CC) -fpic $(CFLAGS) $(JSON_C) -c dcf77pi-ntpsec.c -o $@
-dcf77pi-ntpsec: dcf77pi-ntpsec.o libdcf77.so
-	$(CC) -o $@ dcf77pi-ntpsec.o libdcf77.so $(JSON_L)
+dcf77pi-daemon.o: bits1to14.h decode_alarm.h decode_time.h input.h \
+	mainloop.h calendar.h dcf77pi-daemon.c
+	$(CC) -fpic $(CFLAGS) $(JSON_C) -c dcf77pi-daemon.c -o $@
+dcf77pi-daemon: dcf77pi-daemon.o libdcf77.so
+	$(CC) -o $@ dcf77pi-daemon.o libdcf77.so $(JSON_L) -lrt
 
 kevent-demo.o: input.h kevent-demo.c
 	# __BSD_VISIBLE for FreeBSD < 12.0
@@ -83,16 +83,16 @@ clean:
 	rm -f dcf77pi
 	rm -f dcf77pi-analyze
 	rm -f dcf77pi-readpin
-	rm -f dcf77pi-ntpsec
+	rm -f dcf77pi-daemon
 	rm -f kevent-demo
 	rm -f $(objbin)
 	rm -f libdcf77.so $(objlib)
 
-install: libdcf77.so dcf77pi dcf77pi-analyze dcf77pi-readpin dcf77pi-ntpsec kevent-demo
+install: libdcf77.so dcf77pi dcf77pi-analyze dcf77pi-readpin dcf77pi-daemon kevent-demo
 	mkdir -p $(DESTDIR)$(PREFIX)/lib
 	$(INSTALL_PROGRAM) libdcf77.so $(DESTDIR)$(PREFIX)/lib
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	$(INSTALL_PROGRAM) dcf77pi dcf77pi-analyze dcf77pi-readpin dcf77pi-ntpsec \
+	$(INSTALL_PROGRAM) dcf77pi dcf77pi-analyze dcf77pi-readpin dcf77pi-daemon \
 		$(DESTDIR)$(PREFIX)/bin
 	[ `uname -s` = "FreeBSD" ] && $(INSTALL_PROGRAM) kevent-demo \
 		$(DESTDIR)$(PREFIX)/bin || true
@@ -113,10 +113,10 @@ install: libdcf77.so dcf77pi dcf77pi-analyze dcf77pi-readpin dcf77pi-ntpsec keve
 		$(DESTDIR)$(PREFIX)/share/doc/dcf77pi
 	# Install systemd service file (Linux only)
 	if [ `uname -s` = "Linux" ] && [ -d /etc/systemd/system ]; then \
-		$(INSTALL) -m 0644 dcf77pi-ntpsec.service /etc/systemd/system/ && \
+		$(INSTALL) -m 0644 dcf77pi-daemon.service /etc/systemd/system/ && \
 		systemctl daemon-reload && \
-		systemctl enable dcf77pi-ntpsec.service && \
-		echo "Systemd service installed and enabled. Start with: systemctl start dcf77pi-ntpsec.service"; \
+		systemctl enable dcf77pi-daemon.service && \
+		echo "Systemd service installed and enabled. Start with: systemctl start dcf77pi-daemon.service"; \
 	fi
 
 install-strip:
@@ -133,10 +133,10 @@ install-md:
 
 uninstall: uninstall-doxygen uninstall-md
 	# Stop and disable systemd service (Linux only)
-	if [ `uname -s` = "Linux" ] && [ -f /etc/systemd/system/dcf77pi-ntpsec.service ]; then \
-		systemctl stop dcf77pi-ntpsec.service || true; \
-		systemctl disable dcf77pi-ntpsec.service || true; \
-		rm -f /etc/systemd/system/dcf77pi-ntpsec.service; \
+	if [ `uname -s` = "Linux" ] && [ -f /etc/systemd/system/dcf77pi-daemon.service ]; then \
+		systemctl stop dcf77pi-daemon.service || true; \
+		systemctl disable dcf77pi-daemon.service || true; \
+		rm -f /etc/systemd/system/dcf77pi-daemon.service; \
 		systemctl daemon-reload; \
 		echo "Systemd service stopped, disabled, and removed"; \
 	fi
@@ -144,7 +144,7 @@ uninstall: uninstall-doxygen uninstall-md
 	rm -f $(DESTDIR)$(PREFIX)/bin/dcf77pi
 	rm -f $(DESTDIR)$(PREFIX)/bin/dcf77pi-analyze
 	rm -f $(DESTDIR)$(PREFIX)/bin/dcf77pi-readpin
-	rm -f $(DESTDIR)$(PREFIX)/bin/dcf77pi-ntpsec
+	rm -f $(DESTDIR)$(PREFIX)/bin/dcf77pi-daemon
 	rm -f $(DESTDIR)$(PREFIX)/bin/kevent-demo
 	rm -rf $(DESTDIR)$(PREFIX)/include/dcf77pi
 	rm -f $(DESTDIR)$(ETCDIR)/config.json.sample

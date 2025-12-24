@@ -100,15 +100,15 @@ Path to the output log file for recording received bits.
 
 **Example:** `"outlogfile": "/var/log/dcf77pi.log"`
 
-**Note:** This parameter is only used by `dcf77pi` and `dcf77pi-analyze`. It is ignored by `dcf77pi-ntpsec` (which logs to systemd journal only).
+**Note:** This parameter is only used by `dcf77pi` and `dcf77pi-analyze`. It is ignored by `dcf77pi-daemon` (which logs to systemd journal only).
 
-#### `shm_unit` (integer, 0-3, dcf77pi-ntpsec only)
-NTPSec shared memory unit number. Only used by the `dcf77pi-ntpsec` daemon.
+#### `shm_unit` (integer, 0-3, dcf77pi-daemon only)
+Shared memory unit number. Only used by the `dcf77pi-daemon` daemon.
 
 - `0` *(default)*: Use SHM segment 0 (key 0x4e545030)
 - `1-3`: Use SHM segments 1-3 for multiple time sources
 
-This must match the `unit` number in your NTPSec refclock configuration. For example:
+This must match the `unit` number in your NTPsec/Chrony refclock configuration. For example:
 - `"shm_unit": 0` corresponds to `refclock shm unit 0` in `/etc/ntpsec/ntp.conf`
 
 **Example:** `"shm_unit": 0`

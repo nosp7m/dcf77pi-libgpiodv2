@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 /*
- * dcf77pi-ntpsec: DCF77 decoder daemon with NTPSec shared memory integration
+ * dcf77pi-daemon: DCF77 decoder daemon with NTPsec/Chrony shared memory integration
  * 
  * This daemon runs as a systemd service, decodes DCF77 time signals from GPIO,
- * and provides the time to NTPSec via its shared memory (SHM) interface.
+ * and provides the time to NTPsec/Chrony its shared memory (SHM) interface.
  * All output goes to systemd journal (stdout/stderr).
  */
 
@@ -34,7 +34,7 @@
 #include <time.h>
 #include <unistd.h>
 
-/* NTPSec shared memory structure (from ntpd source) */
+/* NTPsec/Chrony shared memory structure (from ntpd source) */
 struct shmTime {
 	int    mode; /* 0 - if valid set
 	              *   use values, 
@@ -58,7 +58,7 @@ struct shmTime {
 	int dummy[8];
 };
 
-/* NTPSec SHM unit number (configurable via config.json) */
+/* SHM unit number (configurable via config.json) */
 static int shm_unit = 0;
 
 /* Shared memory segment */
@@ -117,19 +117,19 @@ log_error(const char *fmt, ...)
 	fflush(stderr);
 }
 
-/* Initialize NTPSec shared memory segment */
+/* Initialize shared memory segment */
 static int
 init_shm(void)
 {
 	key_t key;
 	
-	/* NTPSec uses key = 0x4e545030 + unit (NTP0, NTP1, etc.) */
+	/* NTPsec/Chrony use key = 0x4e545030 + unit (NTP0, NTP1, etc.) */
 	key = 0x4e545030 + shm_unit;
 	
-	log_info("Initializing NTPSec SHM unit %d (key 0x%08x)", shm_unit, key);
+	log_info("Initializing SHM unit %d (key 0x%08x)", shm_unit, key);
 	
 	/* Create or attach to shared memory segment */
-	shmid = shmget(key, sizeof(struct shmTime), IPC_CREAT | 0600);
+	shmid = shmget(key, sizeof(struct shmTime), IPC_CREAT | 0644);
 	if (shmid == -1) {
 		log_error("Failed to create/attach SHM segment: %s", strerror(errno));
 		return errno;
@@ -150,11 +150,11 @@ init_shm(void)
 	shm->nsamples = 3;
 	shm->valid = 0;
 	
-	log_info("NTPSec SHM initialized successfully");
+	log_info("SHM initialized successfully");
 	return 0;
 }
 
-/* Update NTPSec shared memory with current time */
+/* Update shared memory with current time */
 static void
 update_shm(struct tm dcf_time, int leap_second)
 {
@@ -216,7 +216,7 @@ update_shm(struct tm dcf_time, int leap_second)
 	shm->valid = 1;  /* Mark as valid */
 }
 
-/* Cleanup NTPSec shared memory */
+/* Cleanup shared memory */
 static void
 cleanup_shm(void)
 {
@@ -231,11 +231,11 @@ cleanup_shm(void)
 	}
 	
 	/* Note: We don't remove the SHM segment (shmctl IPC_RMID) because
-	 * NTPSec might still be using it. Let the system admin clean it up
+	 * NTPsec/Chrony might still be using it. Let the system admin clean it up
 	 * manually if needed with: ipcrm -M 0x4e545030 (or appropriate key)
 	 */
 	
-	log_info("NTPSec SHM cleanup complete");
+	log_info("SHM cleanup complete");
 }
 
 /* Signal handler for graceful shutdown */
@@ -364,7 +364,7 @@ display_time(struct DT_result dt, struct tm time)
 		    dt.dst_announce ? " [DST change announced]" : "",
 		    dt.leap_announce ? " [leap second announced]" : "");
 		
-		/* Update NTPSec shared memory */
+		/* Update shared memory */
 		update_shm(time, dt.leap_announce);
 	}
 }
@@ -374,7 +374,7 @@ static struct ML_result
 process_setclock_result(struct ML_result in_ml, int bitpos)
 {
 	(void)bitpos;
-	/* We don't set the system clock - NTPSec does that */
+	/* We don't set the system clock - NTPsec/Chrony do that */
 	return in_ml;
 }
 
@@ -409,7 +409,7 @@ main(int argc, char *argv[])
 	(void)argc;
 	(void)argv;
 	
-	log_info("dcf77pi-ntpsec daemon starting");
+	log_info("dcf77pi-daemon starting");
 	
 	/* Set up signal handlers for graceful shutdown */
 	signal(SIGINT, signal_handler);
@@ -432,7 +432,7 @@ main(int argc, char *argv[])
 		}
 	}
 	
-	/* Note: outlogfile is not used by dcf77pi-ntpsec, only systemd journal logging */
+	/* Note: outlogfile is not used by dcf77pi-daemon, only systemd journal logging */
 	
 	/* Initialize GPIO live mode */
 	res = set_mode_live(config);
@@ -446,10 +446,10 @@ main(int argc, char *argv[])
 	
 	log_info("GPIO initialized successfully");
 	
-	/* Initialize NTPSec shared memory */
+	/* Initialize shared memory */
 	res = init_shm();
 	if (res != 0) {
-		log_error("Failed to initialize NTPSec SHM");
+		log_error("Failed to initialize SHM");
 		cleanup();
 		return res;
 	}
@@ -468,6 +468,6 @@ main(int argc, char *argv[])
 	cleanup_shm();
 	cleanup();
 	
-	log_info("dcf77pi-ntpsec daemon stopped");
+	log_info("dcf77pi-daemon stopped");
 	return 0;
 }
